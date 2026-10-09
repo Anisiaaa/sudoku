@@ -11,21 +11,21 @@ func _init():
 		SudokuScorer.POINTING: "pointing",
 		SudokuScorer.BOX_LINE: "box-line",
 		SudokuScorer.X_WING: "x-wing",
+		SudokuScorer.SWORDFISH: "swordfish",
+		SudokuScorer.JELLYFISH: "jellyfish",
 		SudokuScorer.STUCK: "STUCK",
 	}
 
-	for target in [55, 50, 45, 40, 35, 30, 28, 25, 22]:
+	var counts := {}
+	var n := 500
+
+	for i in n:
 		var full := SudokuGenerator.generate_full_grid()
-		var puzzle := SudokuGenerator.dig_holes(full, target)
-		var clues := 0
-		for v in puzzle:
-			if v != 0:
-				clues += 1
-		var t0 := Time.get_ticks_msec()
+		var puzzle := SudokuGenerator.dig_holes(full, 21)
 		var s := SudokuScorer.score(puzzle)
-		var t1 := Time.get_ticks_msec()
-		print("Target=", target,
-			"  Clues=", clues,
-			"  Score=", names[s],
-			"  Time=", t1 - t0, "ms")
+		counts[s] = counts.get(s, 0) + 1
+
+	print("=== ", n, " puzzles, dug to 21 clues ===")
+	for k in counts:
+		print("  ", names[k], ": ", counts[k])
 	quit()

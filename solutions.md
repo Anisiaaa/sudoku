@@ -266,7 +266,7 @@ spot because the cells often have many candidates.
 
 ---
 
-## Tier 3 — Intersections (planned)
+## Tier 3 — Intersections
 
 ### Pointing Pair / Triple
 
@@ -293,6 +293,27 @@ Box (top-left 3x3):
 **Difficulty:** Medium. Requires scanning boxes and their overlaps with
 rows/columns.
 
+**How the program does it:**
+
+1. Loop over the 9 boxes. The box units live at indices 18–26 in the
+   `_units` array (rows are 0–8, columns are 9–17, boxes are 18–26).
+2. For each box, loop digits 1–9.
+3. Collect every empty cell in the box where this digit is still a
+   candidate. Track whether the digit is already placed in the box —
+   if so, skip.
+4. Require at least 2 cells. A single cell would be a hidden single,
+   which we already tried.
+5. Determine whether all collected cells share a row, a column, or
+   neither. Take the first cell's row and column as reference; every
+   other cell must match one of them.
+6. If they share neither, skip — no pointing pattern here.
+7. Otherwise, eliminate the digit from every cell in the shared
+   row/column that is **outside** the box. Use `_box_of()` to test
+   membership: cells whose box equals `b` are inside; skip them.
+8. Return true if any candidate mask actually changed. If nothing was
+   eliminated (already done by an earlier step), keep searching.
+
+
 ---
 
 ### Box-Line Reduction (Claiming)
@@ -315,9 +336,28 @@ Columns 6 and 7 in row 3 both belong to the top-right box.
 
 **Difficulty:** Medium.
 
+**How the program does it:**
+
+1. Loop over the 18 lines. Indices 0–8 are rows, 9–17 are columns.
+2. For each line, loop digits 1–9.
+3. Collect every empty cell in the line where this digit is a
+   candidate. Skip if the digit is already placed in the line.
+4. Require at least 2 cells, same as pointing.
+5. Check whether all collected cells share a box. Take the first cell's
+   box index via `_box_of()`, then verify every other cell matches.
+6. If they don't all share a box, skip — no claiming pattern here.
+7. Otherwise, eliminate the digit from every cell in that box that is
+   **not** part of the line. Use `line_unit.has(ci)` to test
+   membership: cells already in the line get skipped.
+8. Return true if any mask changed.
+
+This is exactly the mirror of pointing — pointing goes box → line,
+claiming goes line → box. The only structural difference is which
+array we iterate and which membership test we use for exclusion.
+
 ---
 
-## Tier 4 — Fish (planned)
+## Tier 4 — Fish
 
 ### X-Wing
 
@@ -345,6 +385,38 @@ Row 5: candidate for 7 at cols 3 and 7
 
 **Difficulty:** Hard. Requires cross-unit reasoning.
 
+**How the program does it:**
+
+The same function handles X-Wing, Swordfish, and Jellyfish — only the
+`size` parameter differs (2, 3, 4). The algorithm is run twice, once
+per axis.
+
+1. For each digit 1–9, build a list per base line (row for axis 0,
+   column for axis 1). For each of the 9 base lines, collect the cross
+   indices (columns for axis 0, rows for axis 1) where the digit is
+   still a candidate.
+2. Skip a base line if the digit is already placed in it, if it has
+   fewer than 2 candidates (that would be a hidden single, already
+   handled), or if it has more than `size` candidates (can't
+   participate in an N-fish).
+3. Collect all base lines that survived the filter. If fewer than
+   `size` of them exist, this digit has no fish.
+4. Enumerate every combination of `size` base lines.
+5. For the chosen lines, take the union of their cross indices. If the
+   union has exactly `size` distinct entries, we've found a fish: the
+   digit must appear somewhere in those cross lines, one per base line,
+   across the chosen lines.
+6. Eliminate the digit from every cell in those `size` cross lines
+   that is **not** part of the chosen base lines. Cells inside the fish
+   keep their candidates — they're the pattern.
+7. If any candidate mask changed, return true.
+
+The order matters. We try size 2 first (X-Wing), then 3 (Swordfish),
+then 4 (Jellyfish). A puzzle solvable with an X-Wing should never be
+classified as needing a Swordfish, even if a Swordfish pattern also
+happens to exist — the scorer takes the first technique that makes
+progress.
+
 ---
 
 ### Swordfish
@@ -370,6 +442,18 @@ Columns involved: {2, 5, 8}
 
 **Difficulty:** Expert.
 
+**How the program does it:**
+
+Same `_fish()` function as X-Wing, called with `size = 3`. The only
+thing that changes is the combination length and the per-line candidate
+cap. A base line must have between 2 and 3 candidates for the digit.
+Three such lines are chosen, and their cross indices must union to
+exactly 3.
+
+Because we try X-Wing before Swordfish, any puzzle that resolves with
+an X-Wing is never reported as a Swordfish — even if a Swordfish
+pattern is present in the same grid.
+
 ---
 
 ### Jellyfish
@@ -381,6 +465,15 @@ Columns involved: {2, 5, 8}
 **Action:** Eliminate the digit from those 4 columns in other rows.
 
 **Difficulty:** Very expert. Rarely needed for puzzles under ~20 clues.
+
+**How the program does it:**
+
+Same `_fish()` function with `size = 4`. Base lines must have 2 to 4
+candidates, and four of them must combine to exactly 4 cross lines.
+
+Jellyfish is included for completeness but is rare in real puzzles. The
+cost is also higher: 126 four-line combinations per digit per axis, vs.
+36 for X-Wing.
 
 ---
 
@@ -522,7 +615,7 @@ human reasoning.
 
 ---
 
-## Tier 8 — Uniqueness (not huma possible/ not deductable)
+## Tier 8 — Uniqueness (not humanly possible/ not deductable)
 
 ### Unique Rectangle
 

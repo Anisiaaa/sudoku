@@ -14,6 +14,8 @@ const HIDDEN_TRIPLE := 6
 const POINTING := 7
 const BOX_LINE := 8
 const X_WING := 9
+const SWORDFISH := 10
+const JELLYFISH := 11
 const STUCK := 99
 
 static var _units: Array = _build_units()
@@ -49,6 +51,21 @@ static func score(puzzle: PackedInt32Array) -> int:
 		if _hidden_subset(grid, cands, 3):
 			hardest = max(hardest, HIDDEN_TRIPLE)
 			continue
+		if _pointing(grid, cands):
+			hardest = max(hardest, POINTING)
+			continue
+		if _box_line(grid, cands):
+			hardest = max(hardest, BOX_LINE)
+			continue
+		if _fish(grid, cands, 2):
+			hardest = max(hardest, X_WING)
+			continue
+		if _fish(grid, cands, 3):
+			hardest = max(hardest, SWORDFISH)
+			continue
+		if _fish(grid, cands, 4):
+			hardest = max(hardest, JELLYFISH)
+			continue
 		return STUCK
 
 	return STUCK
@@ -75,6 +92,9 @@ static func _build_units() -> Array:
 					box.append((br * 3 + dr) * 9 + (bc * 3 + dc))
 			units.append(box)
 	return units
+	
+static func _box_of(cell: int) -> int:
+	return (cell / 27) * 3 + (cell % 9) / 3
 
 
 static func _is_solved(grid: PackedInt32Array) -> bool:
@@ -233,6 +253,164 @@ static func _hidden_subset(grid: PackedInt32Array, cands: PackedInt32Array, k: i
 				if cands[ci] & ~mask:
 					cands[ci] &= mask
 					changed = true
+			if changed:
+				return true
+	return false
+
+# Pointing: a digit's candidates in a box all share one row or column.
+static func _pointing(grid: PackedInt32Array, cands: PackedInt32Array) -> bool:
+	for b in 9:
+		var box_unit: Array = _units[18 + b]
+		for d in range(1, 10):
+			var bit := 1 << d
+			var cells: Array = []
+			var already := false
+			for c in box_unit:
+				var ci: int = c
+				if grid[ci] == d:
+					already = true
+					break
+				if grid[ci] == 0 and (cands[ci] & bit) != 0:
+					cells.append(ci)
+			if already or cells.size() < 2:
+				continue
+
+			var r0: int = cells[0] / 9
+			var c0: int = cells[0] % 9
+			var same_row := true
+			var same_col := true
+			for c in cells:
+				var ci: int = c
+				if ci / 9 != r0:
+					same_row = false
+				if ci % 9 != c0:
+					same_col = false
+			if not same_row and not same_col:
+				continue
+
+			var changed := false
+			if same_row:
+				for k in 9:
+					var ci := r0 * 9 + k
+					if _box_of(ci) == b:
+						continue
+					if grid[ci] == 0 and (cands[ci] & bit) != 0:
+						cands[ci] &= ~bit
+						changed = true
+			else:
+				for k in 9:
+					var ci := k * 9 + c0
+					if _box_of(ci) == b:
+						continue
+					if grid[ci] == 0 and (cands[ci] & bit) != 0:
+						cands[ci] &= ~bit
+						changed = true
+			if changed:
+				return true
+	return false
+
+
+# Box-line reduction: a digit's candidates in a row/column all lie in one box.
+static func _box_line(grid: PackedInt32Array, cands: PackedInt32Array) -> bool:
+	for u in 18:
+		var line_unit: Array = _units[u]
+		for d in range(1, 10):
+			var bit := 1 << d
+			var cells: Array = []
+			var already := false
+			for c in line_unit:
+				var ci: int = c
+				if grid[ci] == d:
+					already = true
+					break
+				if grid[ci] == 0 and (cands[ci] & bit) != 0:
+					cells.append(ci)
+			if already or cells.size() < 2:
+				continue
+
+			var b0: int = _box_of(cells[0])
+			var same_box := true
+			for c in cells:
+				var ci: int = c
+				if _box_of(ci) != b0:
+					same_box = false
+					break
+			if not same_box:
+				continue
+
+			var box_unit: Array = _units[18 + b0]
+			var changed := false
+			for c in box_unit:
+				var ci: int = c
+				if line_unit.has(ci):
+					continue
+				if grid[ci] == 0 and (cands[ci] & bit) != 0:
+					cands[ci] &= ~bit
+					changed = true
+			if changed:
+				return true
+	return false
+
+# N-fish: a digit whose candidates across N base lines occupy exactly N
+# cross lines. Eliminate the digit from those cross lines elsewhere.
+# size=2 → X-Wing, size=3 → Swordfish, size=4 → Jellyfish.
+static func _fish(grid: PackedInt32Array, cands: PackedInt32Array, size: int) -> bool:
+	for axis in 2:
+		if _fish_axis(grid, cands, size, axis):
+			return true
+	return false
+
+
+ #axis=0: base rows, cross columns. axis=1: base columns, cross rows.
+static func _fish_axis(grid: PackedInt32Array, cands: PackedInt32Array, size: int, axis: int) -> bool:
+	for d in range(1, 10):
+		var bit := 1 << d
+		var candidates_per_base: Array = []
+		for b in 9:
+			var crosses: Array = []
+			var has_digit := false
+			for s in 9:
+				var ci: int = b * 9 + s if axis == 0 else s * 9 + b
+				if grid[ci] == d:
+					has_digit = true
+					break
+				if grid[ci] == 0 and (cands[ci] & bit) != 0:
+					crosses.append(s)
+			if has_digit or crosses.size() < 2 or crosses.size() > size:
+				candidates_per_base.append([])
+			else:
+				candidates_per_base.append(crosses)
+
+		var valid: Array = []
+		for b in 9:
+			if not candidates_per_base[b].is_empty():
+				valid.append(b)
+		if valid.size() < size:
+			continue
+
+		for combo in _combinations(valid.size(), size):
+			var chosen: Array = []
+			for idx in combo:
+				chosen.append(valid[idx])
+
+			var cross_set := {}
+			for b in chosen:
+				for s in candidates_per_base[b]:
+					cross_set[s] = true
+			if cross_set.size() != size:
+				continue
+				
+			#print("[FISH DETECTED] size=", size, " axis=", axis, " digit=", d, " bases=", chosen, " crosses=", cross_set.keys())
+
+			var changed := false
+			for b in 9:
+				if chosen.has(b):
+					continue
+				for s in cross_set:
+					var ci: int = b * 9 + s if axis == 0 else s * 9 + b
+					if grid[ci] == 0 and (cands[ci] & bit) != 0:
+						cands[ci] &= ~bit
+						changed = true
 			if changed:
 				return true
 	return false
