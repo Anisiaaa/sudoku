@@ -27,7 +27,7 @@ static func _build_peers() -> Array:
 
 
 # Count set bits in bits 1..9 of a candidate mask.
-static func _popcount(mask: int) -> int:
+static func popcount(mask: int) -> int:
 	var count := 0
 	for d in range(1, 10):
 		if mask & (1 << d):
@@ -40,7 +40,7 @@ static func _popcount(mask: int) -> int:
 
 static func solve(puzzle: PackedInt32Array, shuffle := false) -> PackedInt32Array:
 	var grid: PackedInt32Array = puzzle.duplicate()
-	var cands := _build_candidates(grid)
+	var cands := build_candidates(grid)
 	if cands.is_empty():
 		return PackedInt32Array()
 	if not _search_solve(grid, cands, shuffle):
@@ -51,7 +51,7 @@ static func solve(puzzle: PackedInt32Array, shuffle := false) -> PackedInt32Arra
 # Count solutions up to `limit`
 static func count_solutions(puzzle: PackedInt32Array, limit := 2) -> int:
 	var grid: PackedInt32Array = puzzle.duplicate()
-	var cands := _build_candidates(grid)
+	var cands := build_candidates(grid)
 	if cands.is_empty():
 		return 0
 	var counter := [0]
@@ -61,7 +61,7 @@ static func count_solutions(puzzle: PackedInt32Array, limit := 2) -> int:
 
 #Setup
 
-static func _build_candidates(grid: PackedInt32Array) -> PackedInt32Array:
+static func build_candidates(grid: PackedInt32Array) -> PackedInt32Array:
 	var cands := PackedInt32Array()
 	cands.resize(SIZE)
 
@@ -100,7 +100,7 @@ static func _search_solve(grid: PackedInt32Array, cands: PackedInt32Array, shuff
 		if grid[i] != 0:
 			continue
 		var m: int = cands[i]
-		var c: int = _popcount(m)
+		var c: int = popcount(m)
 		if c == 0:
 			return false
 		if c < best_count:
@@ -152,7 +152,7 @@ static func _search_count(grid: PackedInt32Array, cands: PackedInt32Array, limit
 		if grid[i] != 0:
 			continue
 		var m: int = cands[i]
-		var c: int = _popcount(m)
+		var c: int = popcount(m)
 		if c == 0:
 			return
 		if c < best_count:
